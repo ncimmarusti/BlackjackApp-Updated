@@ -30,7 +30,7 @@ public class CardDealer : MonoBehaviour
     public Button countToggleButton; // Reference to the toggle button
     public Button resetBetButton; // Reference to the Reset Bet button
 
-
+    public Image discardTrayImage; // Reference to the UI Image for discard tray
 
     private int runningCount = 0;
     private float cardSpacing = 60f;  // Adjust this value to make cards in each hand overlap slightly
@@ -74,19 +74,78 @@ public class CardDealer : MonoBehaviour
                 Debug.LogError("Invalid bankroll input. Using default value.");
             }
         }
+        // Clear all game state
+        ResetGameState();
 
         UpdateBankrollUI();
 
         if (selectedDeckCount > 0)  // Ensure a valid deck count is selected
         {
             UnityEngine.Debug.Log("Starting game with " + selectedDeckCount + " decks.");
-            InitializeDeck();  // Initialize the deck with the selected number of decks
         }
         else
         {
             UnityEngine.Debug.LogError("Please select the number of decks before starting the game.");
         }
     }
+
+    private void ResetGameState()
+    {
+        // Clear player and dealer hands
+        ClearHands();
+
+        // Reset the deck
+        InitializeDeck();  // Initialize the deck with the selected number of decks
+
+        // Reset counts
+        runningCount = 0;
+        UpdateRunningCountUI();
+
+        // Reset true count and running count display
+        trueCountText.text = "True Count: 0.0";
+
+        // Reset the current bet
+        currentBet = 0;
+        UpdateCurrentBetUI();
+
+        // Reset decks remaining UI
+        UpdateDecksRemainingUI();
+
+        // Reset basic strategy and notification text
+        decksRemainingText.text = "Decks Remaining: " + selectedDeckCount.ToString("F2"); // Display the initial number of decks
+        strategySuggestionText.text = "";
+        notificationText.text = "";
+
+        // Enable betting and reset related flags
+        canPlaceBet = true;
+        dealButton.interactable = false; // Deal button should be disabled until a bet is placed
+        resetBetButton.interactable = true; // Reset Bet button should be enabled for a new game
+        splitButton.interactable = false; // Disable the split button initially
+        nextRoundButton.gameObject.SetActive(false); // Ensure Next Round button is hidden
+
+        // Reset bankroll UI
+        UpdateBankrollUI();
+
+        // Reset player turn and round status
+        playerTurnOver = false;
+        roundActive = false;
+
+        // Reset hand tracking
+        playerHands.Clear();
+        playerHandTransforms.Clear();
+        playerHands.Add(new List<GameObject>()); // Add the first hand
+        playerHandTransforms.Add(playerHandTransform); // Set the first hand transform
+        currentHandIndex = 0;
+
+        // Reset accuracy tracking
+        totalActions = 0;
+        correctActions = 0;
+        UpdateAccuracyUI();
+
+        // Log the reset for debugging
+        Debug.Log("Game state has been fully reset.");
+    }
+
 
     public Dropdown deckDropdown;  // Reference to the dropdown in the Unity UI
     private int selectedDeckCount = 1;  // Default to 1 deck if nothing is selected
@@ -295,12 +354,29 @@ public class CardDealer : MonoBehaviour
 
     private bool CheckPlayerBlackjack()
     {
-        // Ensure player has exactly 2 cards
-        if (playerHands[0].Count == 2)
+        // Check if this is the first hand dealt (not a split hand)
+        if (currentHandIndex == 0 && playerHands.Count > 0 && playerHands[0].Count == 2)
         {
             int playerTotal = CalculateHandTotal(playerHands[0]);
-            return playerTotal == 21;
+
+            if (playerTotal == 21)
+            {
+                Debug.Log("Player has a blackjack on the first hand!");
+                return true;
+            }
         }
+        else
+        {
+            if (currentHandIndex != 0)
+            {
+                Debug.LogWarning("Blackjack not applicable because this is not the first hand.");
+            }
+            else
+            {
+                Debug.LogWarning("Player does not have a valid hand or less than 2 cards.");
+            }
+        }
+
         return false;
     }
 
@@ -437,9 +513,9 @@ public class CardDealer : MonoBehaviour
             else
             {
                 SetCardImage(cardGO, dealtCard);
+                UpdateRunningCount(dealtCard); //Do this only for the first card. Second card will update in reveal function.
             }
 
-            UpdateRunningCount(dealtCard);
             dealerCardCount++;  // Increment dealer card count to space the next card
 
             UpdateDecksRemainingUI();  // Update the decks remaining after dealing
@@ -905,6 +981,9 @@ public class CardDealer : MonoBehaviour
         {
             GameObject hiddenCard = dealerHandTransform.GetChild(1).gameObject;
             SetCardImage(hiddenCard, dealerHiddenCardName);
+
+             // Update the running count for the revealed card
+            UpdateRunningCount(dealerHiddenCardName);
         }
         else
         {
@@ -1232,12 +1311,67 @@ public class CardDealer : MonoBehaviour
 
     private void UpdateDecksRemainingUI()
     {
+         // Check if deck is initialized
+        if (deck == null || deck.Count == 0)
+        {
+            Debug.LogError("Deck is null or empty. Please initialize the deck.");
+            decksRemainingText.text = "Decks Remaining: N/A"; // Fallback text
+            return;
+        }
+
+        // Calculate decks remaining
         float decksRemaining = (float)deck.Count / 52.0f;
 
-        // Round up to the nearest 0.5 deck
-        float roundedDecksRemaining = Mathf.Ceil(decksRemaining * 2) / 2.0f;
+        // Round to the nearest 0.25 decks
+        float roundedDecksRemaining = Mathf.Ceil(decksRemaining * 4) / 4.0f;
 
-        decksRemainingText.text = "Decks Remaining: " + roundedDecksRemaining.ToString("F1");
+        // Update the UI Text
+        if (decksRemainingText != null)
+        {
+            decksRemainingText.text = "Decks Remaining: " + roundedDecksRemaining.ToString("F2");
+            decksRemainingText.SetAllDirty(); // Force refresh
+        }
+        else
+        {
+            Debug.LogError("decksRemainingText is not assigned in the Inspector.");
+        }
+
+        // Log the values for debugging
+        Debug.Log($"Deck Count: {deck.Count}, Decks Remaining: {decksRemaining}, Rounded: {roundedDecksRemaining}");
+
+        // Update the discard tray image
+        UpdateDiscardTrayImage(roundedDecksRemaining);
+    }
+
+    private void UpdateDiscardTrayImage(float decksRemaining)
+    {
+        // Calculate the discarded decks
+        float discardedDecks = selectedDeckCount - decksRemaining;
+
+        // Round up to the nearest 0.25 decks
+        float roundedDiscardedDecks = Mathf.Ceil(discardedDecks * 4) / 4.0f;
+
+        // Construct the image name (e.g., "discard_0.25", "discard_1.5", etc.)
+        string imageName = "discard_" + roundedDiscardedDecks.ToString("F2");
+        Debug.Log("Constructed imageName: " + imageName);
+
+        // Load the corresponding sprite from the Resources folder
+        Sprite discardSprite = Resources.Load<Sprite>(imageName);
+
+        if (discardTrayImage == null)
+        {
+            Debug.LogError("discardTrayImage is not assigned. Please check the Inspector.");
+            return;
+        }
+
+        if (discardSprite != null)
+        {
+            discardTrayImage.sprite = discardSprite;  // Update the discard tray image
+        }
+        else
+        {
+            Debug.LogError("Discard tray image not found: " + imageName);
+        }
     }
 
     private void TrackPlayerAccuracy(string playerAction, string recommendedAction)
@@ -1275,6 +1409,7 @@ public class CardDealer : MonoBehaviour
     {
         runningCountText.gameObject.SetActive(isCountVisible); // Show/hide running count
         trueCountText.gameObject.SetActive(isCountVisible);    // Show/hide true count
+        decksRemainingText.gameObject.SetActive(isCountVisible); // Hide/Show Decks Remaining
     }
 
     private void DisplayAllHandResults()
