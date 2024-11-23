@@ -17,6 +17,7 @@ public class CardDealer : MonoBehaviour
     public Text bankrollText;         // UI Text for displaying bankroll
     public Text currentBetText;       // UI Text for displaying current bet
     public Text notificationText; // For regular Text UI
+    public Text runningEVText;         // UI Text to display the running EV
     public InputField bankrollInput;  // Input field for setting initial bankroll
 
 
@@ -32,6 +33,7 @@ public class CardDealer : MonoBehaviour
 
     public Image discardTrayImage; // Reference to the UI Image for discard tray
 
+
     private int runningCount = 0;
     private float cardSpacing = 60f;  // Adjust this value to make cards in each hand overlap slightly
     private float handSpacing = 350f;  // Increase or Decrease this value to create more space between Hand 1 and Hand 2
@@ -39,6 +41,7 @@ public class CardDealer : MonoBehaviour
     private int dealerTotal = 0;  // Store the dealer's total card value
     private int bankroll = 1000;      // Default bankroll value
     private int currentBet = 0;  // Current bet amount
+    private float runningTotalEV = 0f;  // Running total of the player's accumulated EV
     private string dealerHiddenCardName;  // Store the name of the dealer's hidden card
 
     private List<string> deck;
@@ -91,6 +94,12 @@ public class CardDealer : MonoBehaviour
 
     private void ResetGameState()
     {
+        // Reset running EV
+        runningTotalEV = 0f;
+
+        // Update the EV display
+        runningEVText.text = "Running EV: $0.00";
+        
         // Clear player and dealer hands
         ClearHands();
 
@@ -243,6 +252,13 @@ public class CardDealer : MonoBehaviour
             canPlaceBet = false;  // Disable further betting after dealing
             dealButton.interactable = false;  // Disable Deal button during the round
             resetBetButton.interactable = false; // Disable Reset Bet button after dealing
+
+            // Calculate EV for the round BEFORE dealing cards
+            CalculateEVForRound();
+
+            // Update the EV display
+            runningEVText.text = "Running EV: $" + runningTotalEV.ToString("F2");
+
             StartNewRound();  // Deal cards and start the round
         }
         else
@@ -250,6 +266,27 @@ public class CardDealer : MonoBehaviour
             Debug.LogError("Place a bet before dealing.");
         }
     }
+
+    private void CalculateEVForRound()
+    {
+        // Calculate the number of decks remaining
+        float decksRemaining = (float)deck.Count / 52.0f;
+        float trueCount = runningCount / Math.Max(decksRemaining, 1f);  // Avoid division by zero
+        float evMultiplier = 0.5f * trueCount - 0.5f;  // EV multiplier as percentage
+
+        // Calculate the EV for the initial bet
+        float roundEV = (currentBet * evMultiplier) / 100.0f;
+
+        // Update the running total EV
+        runningTotalEV += roundEV;
+
+        // Update the EV display
+        runningEVText.text = "Running EV: $" + runningTotalEV.ToString("F2");
+
+        // Debug log for verification
+        Debug.Log($"EV calculated: Running Count = {runningCount}, True Count = {trueCount}, EV Multiplier = {evMultiplier}, Round EV = {roundEV}, Total EV = {runningTotalEV}");
+    }
+
 
     private void ResetBet()
     {
@@ -382,6 +419,9 @@ public class CardDealer : MonoBehaviour
 
     private void HandlePlayerBlackjack()
     {
+        // Reveal the dealer's hidden card
+        RevealDealerCard();
+
         // Payout is 1.5 times the current bet
         int payout = (int)(currentBet * 1.5f);
         bankroll += currentBet + payout;  // Return the bet plus payout
@@ -867,6 +907,8 @@ public class CardDealer : MonoBehaviour
         trueCountText.text = "True Count: " + trueCount.ToString("F1");
     }
 
+
+
     private void InitializeDeck()
     {
         deck = new List<string>();  // Initialize a new deck
@@ -1093,7 +1135,6 @@ public class CardDealer : MonoBehaviour
         // Mark the round as inactive to block further player actions
         roundActive = false;
 
-
         // Show the "Next Round" button to let the player start the next round
         nextRoundButton.gameObject.SetActive(true);
     }
@@ -1116,6 +1157,9 @@ public class CardDealer : MonoBehaviour
         UnityEngine.Debug.Log("Player Total: " + playerTotal);
         UnityEngine.Debug.Log("Is Soft Hand? " + isSoft);
         UnityEngine.Debug.Log("Dealer's Card: " + dealerUpCard);
+
+        // Check if the player can double
+        bool canDouble = playerHand.Count == 2 && bankroll >= handBets[currentHandIndex];
 
         // Pairs
         if (isPair)
@@ -1141,7 +1185,7 @@ public class CardDealer : MonoBehaviour
                         return "Split";  // Split 6s if dealer shows 2-6
                     return "Hit";  // Hit otherwise
                 case 5:
-                    if (dealerValue <= 9)
+                    if (dealerValue <= 9 && canDouble)
                         return "Double";  // Double on 5s if dealer shows 2-9
                     return "Hit";  // Hit otherwise
                 case 4:
@@ -1170,27 +1214,27 @@ public class CardDealer : MonoBehaviour
                 case 20:  // Soft 20 (A9)
                     return "Stand";  // Always stand on soft 20
                 case 19:  // Soft 19 (A8)
-                    if (dealerValue == 6)
+                    if (dealerValue == 6 && canDouble)
                         return "Double";  // Double if dealer shows 6
                     return "Stand";  // Stand otherwise
                 case 18:  // Soft 18 (A7)
-                    if (dealerValue >= 2 && dealerValue <= 6)
+                    if (dealerValue >= 2 && dealerValue <= 6 && canDouble)
                         return "Double";  // Double if dealer shows 3-6
                     if (dealerValue == 7 || dealerValue == 8)
                         return "Stand";  // Stand if dealer shows 2, 7, or 8
                     return "Hit";  // Hit otherwise
                 case 17:  // Soft 17 (A6)
-                    if (dealerValue >= 3 && dealerValue <= 6)
+                    if (dealerValue >= 3 && dealerValue <= 6 && canDouble)
                         return "Double";  // Double if dealer shows 3-6
                     return "Hit";  // Hit otherwise
                 case 16:  // Soft 16 (A5)
                 case 15:  // Soft 15 (A4)
-                    if (dealerValue >= 4 && dealerValue <= 6)
+                    if (dealerValue >= 4 && dealerValue <= 6 && canDouble)
                         return "Double";  // Double if dealer shows 4-6
                     return "Hit";  // Hit otherwise
                 case 14:  // Soft 14 (A3)
                 case 13:  // Soft 13 (A2)
-                    if (dealerValue >= 5 && dealerValue <= 6)
+                    if (dealerValue >= 5 && dealerValue <= 6 && canDouble)
                         return "Double";  // Double if dealer shows 5-6
                     return "Hit";  // Hit otherwise
                 default:
@@ -1232,13 +1276,15 @@ public class CardDealer : MonoBehaviour
                     return "Stand";  // Stand if dealer shows 4-6
                 return "Hit";  // Hit if dealer shows 2-3 or 7 or higher
             case 11:  // Hard 11
-                return "Double";  // Always double on 11
+                if (canDouble)
+                    return "Double";  // Always double on 11
+                return "Hit"; // Hit if can't double
             case 10:  // Hard 10
-                if (dealerValue >= 2 && dealerValue <= 9)
+                if (dealerValue >= 2 && dealerValue <= 9 && canDouble)
                     return "Double";  // Double if dealer shows 2-9
                 return "Hit";  // Hit if dealer shows 10 or Ace
             case 9:  // Hard 9
-                if (dealerValue >= 3 && dealerValue <= 6)
+                if (dealerValue >= 3 && dealerValue <= 6 && canDouble)
                     return "Double";  // Double if dealer shows 3-6
                 return "Hit";  // Hit if dealer shows 2, or 7 and higher
             case 8:  // Hard 8
