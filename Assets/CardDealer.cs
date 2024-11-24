@@ -1456,7 +1456,7 @@ public class CardDealer : MonoBehaviour
         runningCountText.gameObject.SetActive(isCountVisible); // Show/hide running count
         trueCountText.gameObject.SetActive(isCountVisible);    // Show/hide true count
         decksRemainingText.gameObject.SetActive(isCountVisible); // Show/hide Decks Remaining
-        runningEVText.gameObject.setActive(isCountVisible); //Show/hide Running EV
+        runningEVText.gameObject.SetActive(isCountVisible); //Show/hide Running EV
     }
 
     private void DisplayAllHandResults()
