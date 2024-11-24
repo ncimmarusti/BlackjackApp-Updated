@@ -1220,9 +1220,9 @@ public class CardDealer : MonoBehaviour
                 case 18:  // Soft 18 (A7)
                     if (dealerValue >= 2 && dealerValue <= 6 && canDouble)
                         return "Double";  // Double if dealer shows 3-6
-                    if (dealerValue == 7 || dealerValue == 8)
-                        return "Stand";  // Stand if dealer shows 2, 7, or 8
-                    return "Hit";  // Hit otherwise
+                    if (dealerValue >= 9)
+                        return "hit";  // Double if dealer shows 3-6
+                    return "Stand";  // Stand if dealer shows 7 or 8 or cannot double
                 case 17:  // Soft 17 (A6)
                     if (dealerValue >= 3 && dealerValue <= 6 && canDouble)
                         return "Double";  // Double if dealer shows 3-6
@@ -1455,7 +1455,8 @@ public class CardDealer : MonoBehaviour
     {
         runningCountText.gameObject.SetActive(isCountVisible); // Show/hide running count
         trueCountText.gameObject.SetActive(isCountVisible);    // Show/hide true count
-        decksRemainingText.gameObject.SetActive(isCountVisible); // Hide/Show Decks Remaining
+        decksRemainingText.gameObject.SetActive(isCountVisible); // Show/hide Decks Remaining
+        runningEVText.gameObject.setActive(isCountVisible); //Show/hide Running EV
     }
 
     private void DisplayAllHandResults()
